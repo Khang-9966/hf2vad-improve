@@ -35,7 +35,7 @@ logevery: 100
 saveevery: 1
 
 # training setting
-num_epochs: 80
+num_epochs: 40
 batchsize: 128
 lr: 0.00008
 num_workers: 0

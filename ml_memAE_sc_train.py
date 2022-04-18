@@ -32,8 +32,8 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
     training_chunk_samples_files = sorted(os.listdir(training_chunked_samples_dir))
 
     mse_loss = nn.MSELoss().to(device)
-    model = ML_MemAE_SC(num_in_ch=config["model_paras"]["motion_channels"],
-                        seq_len=config["model_paras"]["num_flows"],
+    model = ML_MemAE_SC(num_in_ch=3,
+                        seq_len=5,
                         features_root=config["model_paras"]["feature_root"],
                         num_slots=config["model_paras"]["num_slots"],
                         shrink_thres=config["model_paras"]["shrink_thres"],
@@ -66,17 +66,20 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
     best_auc = -1
     for epoch in range(epoch_last, epochs + epoch_last):
         for chunk_file_idx, chunk_file in enumerate(training_chunk_samples_files):
-            dataset = Chunked_sample_dataset(os.path.join(training_chunked_samples_dir, chunk_file), last_flow=True)
+            dataset = Chunked_sample_dataset(os.path.join(training_chunked_samples_dir, chunk_file), last_flow=False)
             dataloader = DataLoader(dataset=dataset, batch_size=batch_size, num_workers=num_workers, shuffle=True)
             for idx, train_data in tqdm(enumerate(dataloader),
                                         desc="Training Epoch %d, Chunk File %d" % (epoch + 1, chunk_file_idx),
                                         total=len(dataloader)):
                 model.train()
 
-                _, sample_ofs, _, _, _ = train_data
+                sample_imgs, sample_ofs, _, _, _ = train_data
+            
                 sample_ofs = sample_ofs.to(device)
+                sample_imgs = sample_imgs.to(device)
 
-                out = model(sample_ofs)
+
+                out = model(sample_imgs)
                 loss_recon = mse_loss(out["recon"], sample_ofs)
                 loss_sparsity = (
                         torch.mean(torch.sum(-out["att_weight3"] * torch.log(out["att_weight3"] + 1e-12), dim=1))

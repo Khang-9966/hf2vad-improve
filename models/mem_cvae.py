@@ -25,7 +25,7 @@ class HFVAD(nn.Module):
         self.x_ch = 3  # num of RGB channels
         self.y_ch = 2  # num of optical flow channels
 
-        self.memAE = ML_MemAE_SC(num_in_ch=self.y_ch, seq_len=1, features_root=self.features_root,
+        self.memAE = ML_MemAE_SC(num_in_ch=3, seq_len=5, features_root=self.features_root,
                                  num_slots=self.num_slots, shrink_thres=self.shrink_thres,
                                  mem_usage=self.mem_usage,
                                  skip_ops=self.skip_ops)
@@ -42,15 +42,16 @@ class HFVAD(nn.Module):
         """
         att_weight3_cache, att_weight2_cache, att_weight1_cache = [], [], []
 
-        of_recon = torch.zeros_like(sample_of)
-
+        # of_recon = torch.zeros_like(sample_of)
+        memAE_out = self.memAE(sample_frame)
+        of_recon = memAE_out["recon"]
         # reconstruct flows
-        for j in range(self.num_hist):
-            memAE_out = self.memAE(sample_of[:, 2 * j:2 * (j + 1), :, :])
-            of_recon[:, 2 * j:2 * (j + 1), :, :] = memAE_out["recon"]
-            att_weight3_cache.append(memAE_out["att_weight3"])
-            att_weight2_cache.append(memAE_out["att_weight2"])
-            att_weight1_cache.append(memAE_out["att_weight1"])
+        # for j in range(self.num_hist):
+        #     memAE_out = self.memAE(sample_of[:, 2 * j:2 * (j + 1), :, :])
+        #     of_recon[:, 2 * j:2 * (j + 1), :, :] = memAE_out["recon"]
+        att_weight3_cache.append(memAE_out["att_weight3"])
+        att_weight2_cache.append(memAE_out["att_weight2"])
+        att_weight1_cache.append(memAE_out["att_weight1"])
 
         att_weight3 = torch.cat(att_weight3_cache, dim=0)
         att_weight2 = torch.cat(att_weight2_cache, dim=0)

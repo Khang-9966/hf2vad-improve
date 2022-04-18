@@ -75,7 +75,7 @@ class ML_MemAE_SC(nn.Module):
         self.up_3 = up(features_root * 8, features_root * 4, op=self.skip_ops[-1])
         self.up_2 = up(features_root * 4, features_root * 2, op=self.skip_ops[-2])
         self.up_1 = up(features_root * 2, features_root, op=self.skip_ops[-3])
-        self.out_conv = outconv(features_root, num_in_ch * seq_len)
+        self.out_conv = outconv(features_root, (num_in_ch-1) * (seq_len-1))
 
     def forward(self, x):
         """
