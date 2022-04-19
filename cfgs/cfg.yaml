@@ -20,11 +20,11 @@ device: cuda:0
 dataset_base_dir: ./data
 dataset_name: ped2
 exp_name: ped2_ML_MemAE_SC_CVAE
-ckpt_root: ./ckpt
-log_root: ./log
-eval_root: ./eval
+ckpt_root: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/ckpt
+log_root: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/log
+eval_root: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/eval
 
-ML_MemAE_SC_pretrained: ./ckpt/ped2_ML_MemAE_SC/best.pth
+ML_MemAE_SC_pretrained: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/ckpt/ped2_ML_MemAE_SC/best.pth
 pretrained: False
 model_savename: model.pth
 # num of iterations to log
