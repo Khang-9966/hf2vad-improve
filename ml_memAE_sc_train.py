@@ -132,9 +132,9 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
                 if auc > best_auc:
                     best_auc = auc
                     only_model_saver(model.state_dict(), os.path.join(paths["ckpt_dir"], "best.pth"))
-
+                    
                 writer.add_scalar("auc", auc, global_step=epoch + 1)
-
+                print("================ Best AUC %.4f ================" % best_auc)
     print("================ Best AUC %.4f ================" % best_auc)
 
 
