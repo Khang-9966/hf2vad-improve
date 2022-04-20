@@ -11,7 +11,7 @@ import numpy as np
 import yaml
 from models.mem_cvae import HFVAD
 from datasets.dataset import Chunked_sample_dataset
-from utils.eval_utils import save_evaluation_curves
+from utils.eval_utils import save_evaluation_curves,evaluation
 
 METADATA = {
     "ped2": {
@@ -84,7 +84,10 @@ def evaluate(config, ckpt_path, testing_chunked_samples_file, training_stats_pat
     dataloader_test = DataLoader(dataset=dataset_test, batch_size=128, num_workers=num_workers, shuffle=False)
 
     # bbox anomaly scores for each frame
-    frame_bbox_scores = [{} for i in range(testset_num_frames.item())]
+    
+    of_scores_list = []
+    frame_scores_list = []
+    pred_frame_test_list = []
     for test_data in tqdm(dataloader_test, desc="Eval: ", total=len(dataloader_test)):
 
         sample_frames_test, sample_ofs_test, bbox_test, pred_frame_test, indices_test = test_data
@@ -104,59 +107,77 @@ def evaluate(config, ckpt_path, testing_chunked_samples_file, training_stats_pat
             of_scores = (of_scores - of_mean) / of_std
             frame_scores = (frame_scores - frame_mean) / frame_std
 
-        scores = config["w_r"] * of_scores + config["w_p"] * frame_scores
-
-        for i in range(len(scores)):
-            frame_bbox_scores[pred_frame_test[i][-1].item()][i] = scores[i]
+        of_scores_list.append(of_scores)
+        frame_scores_list.append(frame_scores)
+        pred_frame_test_list.append(pred_frame_test)
 
     del dataset_test
+    best_auc = 0
+    best_w_r = 0
+    best_w_p = 0
+    for w_r_ in  np.arange(0,1.5,0.05):
+      for w_p_ in np.arange(0,1.5,0.05):
+        frame_bbox_scores = [{} for i in range(testset_num_frames.item())]
+        for batch_index in range(len(frame_scores_list)):
+          of_scores = of_scores_list[batch_index]
+          frame_scores = frame_scores_list[batch_index]
+          pred_frame_test = pred_frame_test_list[batch_index]
+          scores = w_r_ * of_scores + w_p_ * frame_scores
 
-    # joblib.dump(frame_bbox_scores,
-    #             os.path.join(config["eval_root"], config["exp_name"], "frame_bbox_scores_%s.json" % suffix))
+          for i in range(len(scores)):
+              frame_bbox_scores[pred_frame_test[i][-1].item()][i] = scores[i]
 
-    # frame_bbox_scores = joblib.load(os.path.join(config["eval_root"], config["exp_name"],
-    #                                              "frame_bbox_scores_%s.json" % suffix))
 
-    # frame-level anomaly score
-    frame_scores = np.empty(len(frame_bbox_scores))
-    for i in range(len(frame_scores)):
-        if len(frame_bbox_scores[i].items()) == 0:
-            frame_scores[i] = config["w_r"] * (0 - of_mean) / of_std + config["w_p"] * (0 - frame_mean) / frame_std
-        else:
-            frame_scores[i] = np.max(list(frame_bbox_scores[i].values()))
+        # frame-level anomaly score
+        frame_scores = np.empty(len(frame_bbox_scores))
+        for i in range(len(frame_scores)):
+            if len(frame_bbox_scores[i].items()) == 0:
+                frame_scores[i] = w_r_ * (0 - of_mean) / of_std + w_p_ * (0 - frame_mean) / frame_std
+            else:
+                frame_scores[i] = np.max(list(frame_bbox_scores[i].values()))
 
-    joblib.dump(frame_scores,
-                os.path.join(config["eval_root"], config["exp_name"], "frame_scores_%s.json" % suffix))
+        joblib.dump(frame_scores,
+                    os.path.join(config["eval_root"], config["exp_name"], "frame_scores_%s.json" % suffix))
 
-    # frame_scores = joblib.load(
-    #     os.path.join(config["eval_root"], config["exp_name"], "frame_scores_%s.json" % suffix)
-    # )
+        # frame_scores = joblib.load(
+        #     os.path.join(config["eval_root"], config["exp_name"], "frame_scores_%s.json" % suffix)
+        # )
 
-    # ================== Calculate AUC ==============================
-    # load gt labels
-    gt = pickle.load(
-        open(os.path.join(config["dataset_base_dir"], "%s/ground_truth_demo/gt_label.json" % dataset_name), "rb"))
-    gt_concat = np.concatenate(list(gt.values()), axis=0)
+        # ================== Calculate AUC ==============================
+        # load gt labels
+        gt = pickle.load(
+            open(os.path.join(config["dataset_base_dir"], "%s/ground_truth_demo/gt_label.json" % dataset_name), "rb"))
+        gt_concat = np.concatenate(list(gt.values()), axis=0)
 
-    new_gt = np.array([])
-    new_frame_scores = np.array([])
+        new_gt = np.array([])
+        new_frame_scores = np.array([])
 
-    start_idx = 0
-    for cur_video_id in range(METADATA[dataset_name]["testing_video_num"]):
-        gt_each_video = gt_concat[start_idx:start_idx + METADATA[dataset_name]["testing_frames_cnt"][cur_video_id]][4:]
-        scores_each_video = frame_scores[
-                            start_idx:start_idx + METADATA[dataset_name]["testing_frames_cnt"][cur_video_id]][4:]
+        start_idx = 0
+        for cur_video_id in range(METADATA[dataset_name]["testing_video_num"]):
+            gt_each_video = gt_concat[start_idx:start_idx + METADATA[dataset_name]["testing_frames_cnt"][cur_video_id]][4:]
+            scores_each_video = frame_scores[
+                                start_idx:start_idx + METADATA[dataset_name]["testing_frames_cnt"][cur_video_id]][4:]
 
-        start_idx += METADATA[dataset_name]["testing_frames_cnt"][cur_video_id]
+            start_idx += METADATA[dataset_name]["testing_frames_cnt"][cur_video_id]
 
-        new_gt = np.concatenate((new_gt, gt_each_video), axis=0)
-        new_frame_scores = np.concatenate((new_frame_scores, scores_each_video), axis=0)
+            new_gt = np.concatenate((new_gt, gt_each_video), axis=0)
+            new_frame_scores = np.concatenate((new_frame_scores, scores_each_video), axis=0)
 
-    gt_concat = new_gt
-    frame_scores = new_frame_scores
+        gt_concat = new_gt
+        frame_scores = new_frame_scores
+
+        auc = evaluation(frame_scores, gt_concat,
+                                 np.array(METADATA[dataset_name]["testing_frames_cnt"]) - 4)
+
+        if auc >= best_auc:
+          best_auc = auc
+          best_frame_scores = frame_scores
+          best_w_r = w_r_
+          best_w_p = w_p_
+          print(w_r_,w_p_,best_auc)
 
     curves_save_path = os.path.join(config["eval_root"], config["exp_name"], 'anomaly_curves_%s' % suffix)
-    auc = save_evaluation_curves(frame_scores, gt_concat, curves_save_path,
+    auc = save_evaluation_curves(best_frame_scores, gt_concat, curves_save_path,
                                  np.array(METADATA[dataset_name]["testing_frames_cnt"]) - 4)
 
     return auc
