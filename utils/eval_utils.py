@@ -99,7 +99,7 @@ def save_evaluation_curves(scores, labels, curves_save_path, video_frame_nums):
 
     return auroc
 
-def evaluation_curves(scores, labels, video_frame_nums):
+def evaluation(scores, labels, video_frame_nums):
 
     scores = scores.flatten()
     labels = labels.flatten()
