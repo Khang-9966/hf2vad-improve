@@ -98,3 +98,32 @@ def save_evaluation_curves(scores, labels, curves_save_path, video_frame_nums):
         plt.close()
 
     return auroc
+
+def evaluation_curves(scores, labels, video_frame_nums):
+
+    scores = scores.flatten()
+    labels = labels.flatten()
+
+    scores_each_video = {}
+    labels_each_video = {}
+
+    start_idx = 0
+    for video_id in range(len(video_frame_nums)):
+        scores_each_video[video_id] = scores[start_idx:start_idx + video_frame_nums[video_id]]
+        scores_each_video[video_id] = signal.medfilt(scores_each_video[video_id], kernel_size=17)
+        labels_each_video[video_id] = labels[start_idx:start_idx + video_frame_nums[video_id]]
+
+        start_idx += video_frame_nums[video_id]
+
+    truth = []
+    preds = []
+    for i in range(len(scores_each_video)):
+        truth.append(labels_each_video[i])
+        preds.append(scores_each_video[i])
+
+    truth = np.concatenate(truth, axis=0)
+    preds = np.concatenate(preds, axis=0)
+    fpr, tpr, roc_thresholds = roc_curve(truth, preds, pos_label=1)
+    auroc = auc(fpr, tpr)
+
+    return auroc
