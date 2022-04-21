@@ -54,5 +54,5 @@ lam_sparse: 0.0002
 # lambda for flow recon. loss
 lam_recon: 1.0
 
-w_r: 1.0
-w_p: 0.1
+w_r: 0.05
+w_p: 1.0
