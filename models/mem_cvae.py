@@ -70,7 +70,7 @@ class HFVAD(nn.Module):
         frame_in = sample_frame[:, :-self.x_ch * self.num_pred, :, :]
         frame_target = sample_frame[:, -self.x_ch * self.num_pred:, :, :]
 
-        input_dict = dict(appearance=frame_in, motion=of_recon)
+        input_dict = dict(appearance=frame_in, motion=of_recon, true_motion=sample_of)
         frame_pred = self.vunet(input_dict, mode=mode)
 
         out = dict(frame_pred=frame_pred, frame_target=frame_target,

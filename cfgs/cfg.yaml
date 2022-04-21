@@ -24,7 +24,7 @@ ckpt_root: ./ckpt
 log_root: ./log
 eval_root: ./eval
 
-ML_MemAE_SC_pretrained: /content/drive/MyDrive/Checkpoint/hf2vad-avenue-improve/ckpt/ped2_ML_MemAE_SC/best.pth
+ML_MemAE_SC_pretrained: /content/drive/MyDrive/Checkpoint/hf2vad-avenue-improve/ckpt/avenue_ML_MemAE_SC/best.pth
 pretrained: False
 model_savename: model.pth
 # num of iterations to log
