@@ -115,8 +115,8 @@ def evaluate(config, ckpt_path, testing_chunked_samples_file, training_stats_pat
     best_auc = 0
     best_w_r = 0
     best_w_p = 0
-    for w_r_ in  np.arange(0,1.5,0.05):
-      for w_p_ in np.arange(0,1.5,0.05):
+    for w_r_ in  np.arange(0,1.1,0.05):
+      for w_p_ in np.arange(0,1.1,0.05):
         frame_bbox_scores = [{} for i in range(testset_num_frames.item())]
         for batch_index in range(len(frame_scores_list)):
           of_scores = of_scores_list[batch_index]
