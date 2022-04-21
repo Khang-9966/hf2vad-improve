@@ -19,14 +19,14 @@ model_paras:
 
 device: cuda:0
 dataset_base_dir: ./data
-dataset_name: ped2
-exp_name: ped2_ML_MemAE_SC_CVAE_finetune
-ckpt_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/ckpt
-log_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/log
-eval_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/eval
+dataset_name: avenue
+exp_name: avenue_ML_MemAE_SC_CVAE_finetune
+ckpt_root: ./ckpt
+log_root:  ./log
+eval_root: ./eval
 
 ML_MemAE_SC_pretrained: False
-pretrained:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/ckpt/ped2_ML_MemAE_SC_CVAE/best.pth
+pretrained:  /content/drive/MyDrive/Checkpoint/hf2vad-avenue-improve/ckpt/avenue_ML_MemAE_SC_CVAE/best.pth
 model_savename: model.pth
 # num of iterations to log
 logevery: 100
