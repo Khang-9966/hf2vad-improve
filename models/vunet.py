@@ -432,13 +432,13 @@ class VUnet(nn.Module):
         2. test stage, use the mean of the posterior as sampled z
         '''
         # posterior
-        x_f_in = torch.cat((inputs['appearance'], inputs['motion']), dim=1)
+        x_f_in = torch.cat((inputs['appearance'], inputs['true_motion']), dim=1)
         x_f = self.f_phi(x_f_in)
         # params and samples of the posterior
         q_means, zs = self.zc(x_f)
 
         # encoding features of flows
-        x_e = self.e_theta(inputs['true_motion'])
+        x_e = self.e_theta(inputs['motion'])
 
         if mode == "train":
             out_b, p_means, ps = self.bottleneck(x_e, zs)  # h, p_params, z_prior
