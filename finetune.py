@@ -60,6 +60,12 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
         model_state_dict = torch.load(config["pretrained"])["model_state_dict"]
         model.load_state_dict(model_state_dict)
 
+    if config["condition_centers"]:
+        training_centers = torch.load(config["condition_centers"])
+
+        q_means_44_center = torch.tensor(training_centers["q_means_44"]).cuda().unsqueeze(dim=0)
+        q_means_88_center = torch.tensor(training_centers["q_means_88"]).cuda().unsqueeze(dim=0)
+
     writer = SummaryWriter(paths["log_dir"])
     # copy hyper-params settings
     shutil.copyfile("./cfgs/finetune_cfg.yaml",
@@ -81,6 +87,11 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
 
                 out = model(sample_frames, sample_ofs, mode="train")
 
+                q_means_44 = list(out["q_means"].values())[0]
+                q_means_88 = list(out["q_means"].values())[1]
+
+                svdd_loss = torch.mean((q_means_44_center - q_means_44)**2) + torch.mean((q_means_88_center - q_means_88)**2)
+
                 # loss of ML-MemAE-SC
                 loss_sparsity = out["loss_sparsity"]
                 loss_flow_recon = out["loss_recon"]
@@ -93,7 +104,8 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
                            config["lam_frame"] * loss_frame + \
                            config["lam_grad"] * loss_grad + \
                            config["lam_sparse"] * loss_sparsity + \
-                           config["lam_recon"] * loss_flow_recon
+                           config["lam_recon"] * loss_flow_recon + \
+                           config["lam_svdd"] * svdd_loss
 
                 optimizer.zero_grad()
                 loss_all.backward()

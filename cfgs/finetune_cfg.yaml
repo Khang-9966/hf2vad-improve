@@ -19,14 +19,14 @@ model_paras:
 
 device: cuda:0
 dataset_base_dir: ./data
-dataset_name: avenue
-exp_name: avenue_ML_MemAE_SC_CVAE_finetune
-ckpt_root: /content/drive/MyDrive/Checkpoint/hf2vad-avenue-trueopscon/ckpt
-log_root:  /content/drive/MyDrive/Checkpoint/hf2vad-avenue-trueopscon/log
-eval_root: /content/drive/MyDrive/Checkpoint/hf2vad-avenue-trueopscon/eval
+dataset_name: ped2
+exp_name: ped2_ML_MemAE_SC_CVAE_finetune
+ckpt_root: ./ckpt
+log_root:  ./log
+eval_root: ./eval
 
 ML_MemAE_SC_pretrained: False
-pretrained:  /content/drive/MyDrive/Checkpoint/hf2vad-avenue-trueopscon/ckpt/avenue_ML_MemAE_SC_CVAE/best.pth
+pretrained:  ./ckpt/ped2_ML_MemAE_SC_CVAE/best.pth
 model_savename: model.pth
 # num of iterations to log
 logevery: 100
@@ -53,6 +53,10 @@ lam_grad: 1.0
 lam_sparse: 0.0002
 # lambda for flow recon. loss
 lam_recon: 1.0
+# lambda for svdd loss
+lam_svdd: 10.0
 
 w_r: 0.05
 w_p: 1.0
+
+condition_centers: ./eval/ped2_ML_MemAE_SC_CVAE_finetune/training_centers.npy

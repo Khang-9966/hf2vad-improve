@@ -70,6 +70,14 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
         model.load_state_dict(model_state_dict)
         optimizer.load_state_dict(optimizer_state_dict)
 
+    if config["condition_centers"]:
+        training_centers = torch.load(config["condition_centers"])
+
+        q_means_44_center = torch.tensor(training_centers["q_means_44"]).cuda().unsqueeze(dim=0)
+        q_means_88_center = torch.tensor(training_centers["q_means_88"]).cuda().unsqueeze(dim=0)
+
+
+
     writer = SummaryWriter(paths["log_dir"])
     shutil.copyfile("./cfgs/cfg.yaml", os.path.join(config["log_root"], config["exp_name"], "cfg.yaml"))
 
@@ -89,13 +97,19 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
 
                 out = model(sample_frames, sample_ofs, mode="train")
 
+                q_means_44 = list(out["q_means"].values())[0]
+                q_means_88 = list(out["q_means"].values())[1]
+
+                svdd_loss = torch.mean((q_means_44_center - q_means_44)**2) + torch.mean((q_means_88_center - q_means_88)**2)
+
                 loss_kl = aggregate_kl_loss(out["q_means"], out["p_means"])
                 loss_frame = intensity_loss(out["frame_pred"], out["frame_target"])
                 loss_grad = grad_loss(out["frame_pred"], out["frame_target"])
 
                 loss_all = config["lam_kl"] * loss_kl + \
                            config["lam_frame"] * loss_frame + \
-                           config["lam_grad"] * loss_grad
+                           config["lam_grad"] * loss_grad + \
+                           config["lam_svdd"] * svdd_loss
 
                 optimizer.zero_grad()
                 loss_all.backward()
@@ -222,6 +236,71 @@ def cal_training_stats(config, ckpt_path, training_chunked_samples_dir, stats_sa
 
     training_stats = dict(of_training_stats=of_training_stats,
                           frame_training_stats=frame_training_stats)
+    # save to file
+    torch.save(training_stats, stats_save_path)
+
+def cal_training_condi_center(config, ckpt_path, training_chunked_samples_dir, stats_save_path):
+    device = config["device"]
+    model = HFVAD(num_hist=config["model_paras"]["clip_hist"],
+                  num_pred=config["model_paras"]["clip_pred"],
+                  config=config,
+                  features_root=config["model_paras"]["feature_root"],
+                  num_slots=config["model_paras"]["num_slots"],
+                  shrink_thres=config["model_paras"]["shrink_thres"],
+                  skip_ops=config["model_paras"]["skip_ops"],
+                  mem_usage=config["model_paras"]["mem_usage"],
+                  ).to(config["device"]).eval()
+
+    # load weights
+    model_weights = torch.load(ckpt_path)["model_state_dict"]
+    model.load_state_dict(model_weights)
+    # print("load pre-trained success!")
+
+    score_func = nn.MSELoss(reduction="none")
+    training_chunk_samples_files = sorted(os.listdir(training_chunked_samples_dir))
+
+    of_training_stats = []
+    frame_training_stats = []
+    q_means_44_list = []
+    q_means_88_list = []
+    print("=========Forward pass for training stats ==========")
+    with torch.no_grad():
+
+        for chunk_file_idx, chunk_file in enumerate(training_chunk_samples_files):
+            dataset = Chunked_sample_dataset(os.path.join(training_chunked_samples_dir, chunk_file))
+            dataloader = DataLoader(dataset=dataset, batch_size=128, num_workers=0, shuffle=False)
+
+            for idx, data in tqdm(enumerate(dataloader),
+                                  desc="Training stats calculating, Chunked File %02d" % chunk_file_idx,
+                                  total=len(dataloader)):
+                sample_frames, sample_ofs, _, _, _ = data
+                sample_frames = sample_frames.to(device)
+                sample_ofs = sample_ofs.to(device)
+
+                out = model(sample_frames, sample_ofs, mode="test")
+
+                q_means_44_list += list(list(out["q_means"].values())[0].detach().cpu().numpy())
+                q_means_88_list += list(list(out["q_means"].values())[1].detach().cpu().numpy())
+
+                loss_frame = score_func(out["frame_pred"], out["frame_target"]).cpu().data.numpy()
+                loss_of = score_func(out["of_recon"], out["of_target"]).cpu().data.numpy()
+
+                of_scores = np.sum(np.sum(np.sum(loss_of, axis=3), axis=2), axis=1)
+                frame_scores = np.sum(np.sum(np.sum(loss_frame, axis=3), axis=2), axis=1)
+
+                of_training_stats.append(of_scores)
+                frame_training_stats.append(frame_scores)
+            del dataset
+            gc.collect()
+
+    print("=========Forward pass for training stats done!==========")
+    q_means_44 = np.array(q_means_44_list).mean(axis=0)
+    q_means_88 = np.array(q_means_88_list).mean(axis=0)
+    print(q_means_88.shape)
+    print(q_means_44.shape)
+
+    training_stats = dict(q_means_44=q_means_44,
+                          q_means_88=q_means_88)
     # save to file
     torch.save(training_stats, stats_save_path)
 
