@@ -76,17 +76,17 @@ def evaluate(config, ckpt_path, testing_chunked_samples_dir, suffix):
     testing_chunk_samples_files = sorted(os.listdir(testing_chunked_samples_dir))
     for chunk_file_idx, chunk_file in enumerate(testing_chunk_samples_files):
 
-      dataset_test = Chunked_sample_dataset(os.path.join(testing_chunked_samples_dir, chunk_file), last_flow=True)
+      dataset_test = Chunked_sample_dataset(os.path.join(testing_chunked_samples_dir, chunk_file), last_flow=False)
       dataloader_test = DataLoader(dataset=dataset_test, batch_size=128, num_workers=num_workers, shuffle=False)
 
       # bbox anomaly scores for each frame
       
 
       for ii, test_data in tqdm(enumerate(dataloader_test), desc="Eval: ", total=len(dataloader_test)):
-          _, sample_ofs_test, bbox_test, pred_frame_test, indices_test = test_data
+          sample_imgs_test, sample_ofs_test, bbox_test, pred_frame_test, indices_test = test_data
           sample_ofs_test = sample_ofs_test.cuda()
-
-          out_test = model(sample_ofs_test)
+          sample_imgs_test = sample_imgs_test.cuda()
+          out_test = model(sample_imgs_test)
           loss_of_test = score_func(out_test["recon"], sample_ofs_test).cpu().data.numpy()
           scores = np.sum(np.sum(np.sum(loss_of_test, axis=3), axis=2), axis=1)
 
