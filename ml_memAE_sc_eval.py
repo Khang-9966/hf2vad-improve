@@ -40,11 +40,15 @@ METADATA = {
                                361, 433, 241, 433, 601, 505, 337, 601, 265, 313,
                                241, 289, 361, 385, 217, 337, 265]
     },
+    "ucf": {
+    "testing_video_num": 86,
+    "testing_frames_cnt": [1366, 347, 1483, 224, 1691, 1101, 1327, 528, 2159, 468, 1729, 1347, 2192, 243, 1773, 155, 716, 3510, 5946, 1189, 1290, 2185, 2261, 587, 1739, 277, 1315, 1946, 187, 394, 665, 2429, 401, 362, 684, 1253, 837, 674, 1896, 7447, 3516, 117, 1609, 1209, 631, 859, 567, 329, 2387, 1086, 873, 4449, 900, 4260, 1108, 1789, 1699, 1799, 1806, 1152, 1302, 263, 357, 5618, 2159, 2389, 1067, 4021, 451, 927, 1953, 968, 1826, 1835, 1495, 1771, 2580, 565, 253, 1277, 277, 2885, 1980, 882, 1168, 1500]
+  }
 
 }
 
 
-def evaluate(config, ckpt_path, testing_chunked_samples_file, suffix):
+def evaluate(config, ckpt_path, testing_chunked_samples_dir, suffix):
     dataset_name = config["dataset_name"]
     device = config["device"]
     num_workers = config["num_workers"]
@@ -67,29 +71,31 @@ def evaluate(config, ckpt_path, testing_chunked_samples_file, suffix):
     print("load pre-trained success!")
 
     score_func = nn.MSELoss(reduction="none")
-
-    dataset_test = Chunked_sample_dataset(testing_chunked_samples_file, last_flow=False)
-    dataloader_test = DataLoader(dataset=dataset_test, batch_size=128, num_workers=num_workers, shuffle=False)
-
-    # bbox anomaly scores for each frame
     frame_bbox_scores = [{} for i in range(testset_num_frames.item())]
 
-    for ii, test_data in tqdm(enumerate(dataloader_test), desc="Eval: ", total=len(dataloader_test)):
-        sample_imgs_test, sample_ofs_test, bbox_test, pred_frame_test, indices_test = test_data
-        sample_ofs_test = sample_ofs_test.cuda()
-        sample_imgs_test = sample_imgs_test.cuda()
+    testing_chunk_samples_files = sorted(os.listdir(testing_chunked_samples_dir))
+    for chunk_file_idx, chunk_file in enumerate(testing_chunk_samples_files):
 
-        out_test = model(sample_imgs_test)
-        
-        loss_of_test = score_func(out_test["recon"], sample_ofs_test).cpu().data.numpy()
-        scores = np.sum(np.sum(np.sum(loss_of_test, axis=3), axis=2), axis=1)
+      dataset_test = Chunked_sample_dataset(os.path.join(testing_chunked_samples_dir, chunk_file), last_flow=True)
+      dataloader_test = DataLoader(dataset=dataset_test, batch_size=128, num_workers=num_workers, shuffle=False)
 
-        # anomaly scores for each sample
-        for i in range(len(scores)):
-            frame_bbox_scores[pred_frame_test[i][-1].item()][i] = scores[i]
+      # bbox anomaly scores for each frame
+      
 
-    del dataset_test
-    gc.collect()
+      for ii, test_data in tqdm(enumerate(dataloader_test), desc="Eval: ", total=len(dataloader_test)):
+          _, sample_ofs_test, bbox_test, pred_frame_test, indices_test = test_data
+          sample_ofs_test = sample_ofs_test.cuda()
+
+          out_test = model(sample_ofs_test)
+          loss_of_test = score_func(out_test["recon"], sample_ofs_test).cpu().data.numpy()
+          scores = np.sum(np.sum(np.sum(loss_of_test, axis=3), axis=2), axis=1)
+
+          # anomaly scores for each sample
+          for i in range(len(scores)):
+              frame_bbox_scores[pred_frame_test[i][-1].item()][i] = scores[i]
+
+      del dataset_test
+      gc.collect()
 
     joblib.dump(frame_bbox_scores, os.path.join(config["eval_root"], config["exp_name"],
                                                 "frame_bbox_scores_%s.json" % suffix))
@@ -151,9 +157,9 @@ if __name__ == '__main__':
     dataset_base_dir = config["dataset_base_dir"]
     dataset_name = config["dataset_name"]
 
-    testing_chunked_samples_file = os.path.join("./data", config["dataset_name"],
-                                                "testing/chunked_samples/chunked_samples_00.pkl")
+    testing_chunked_samples_dir = os.path.join("./data", config["dataset_name"],
+                                                "testing/chunked_samples/chunked_samples")
 
     with torch.no_grad():
-        auc = evaluate(config, model_save_path, testing_chunked_samples_file, suffix="best")
+        auc = evaluate(config, model_save_path, testing_chunked_samples_dir, suffix="best")
         print(auc)

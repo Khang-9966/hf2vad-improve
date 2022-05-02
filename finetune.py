@@ -230,6 +230,6 @@ if __name__ == '__main__':
     dataset_base_dir = config["dataset_base_dir"]
     training_chunked_samples_dir = os.path.join(dataset_base_dir, dataset_name, "training/chunked_samples")
     testing_chunked_samples_file = os.path.join(dataset_base_dir, dataset_name,
-                                                "testing/chunked_samples/chunked_samples_00.pkl")
+                                                "testing/chunked_samples")
 
     train(config, training_chunked_samples_dir, testing_chunked_samples_file)

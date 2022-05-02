@@ -10,11 +10,11 @@ model_paras:
 
 # exp settings
 dataset_base_dir: ./data
-dataset_name: ped2
-exp_name: ped2_ML_MemAE_SC
-ckpt_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/ckpt
-log_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/log
-eval_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/eval
+dataset_name: ucf
+exp_name: ucf_ML_MemAE_SC
+ckpt_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ucf-improve-lan1/ckpt
+log_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ucf-improve-lan1/log
+eval_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ucf-improve-lan1/eval
 device: cuda:0
 
 pretrained: False
@@ -26,7 +26,7 @@ logevery: 100
 saveevery: 1
 
 # training setting
-num_epochs: 80
+num_epochs: 20
 batchsize: 256
 lr: 0.0001
 num_workers: 8
