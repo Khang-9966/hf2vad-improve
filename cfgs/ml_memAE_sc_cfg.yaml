@@ -12,9 +12,9 @@ model_paras:
 dataset_base_dir: ./data
 dataset_name: ped2
 exp_name: ped2_ML_MemAE_SC
-ckpt_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/ckpt
-log_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/log
-eval_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-improve/eval
+ckpt_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-singleflowpred/ckpt
+log_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-singleflowpred/log
+eval_root: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-singleflowpred/eval
 device: cuda:0
 
 pretrained: False
