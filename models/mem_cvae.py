@@ -47,7 +47,7 @@ class HFVAD(nn.Module):
         # of_recon = memAE_out["recon"]
         # reconstruct flows
         for j in range(self.num_hist):
-            memAE_out = self.memAE(sample_frame[:, 3 * j:3 * (j + 1), :, :])
+            memAE_out = self.memAE(sample_frame[:, 3 * j:3 * (j + 2), :, :])
             of_recon[:, 2 * j:2 * (j + 1), :, :] = memAE_out["recon"]
         att_weight3_cache.append(memAE_out["att_weight3"])
         att_weight2_cache.append(memAE_out["att_weight2"])
