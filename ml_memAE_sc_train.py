@@ -33,7 +33,7 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
 
     mse_loss = nn.MSELoss().to(device)
     model = ML_MemAE_SC(num_in_ch=3,
-                        seq_len=5,
+                        seq_len=2,
                         features_root=config["model_paras"]["feature_root"],
                         num_slots=config["model_paras"]["num_slots"],
                         shrink_thres=config["model_paras"]["shrink_thres"],
@@ -66,7 +66,7 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
     best_auc = -1
     for epoch in range(epoch_last, epochs + epoch_last):
         for chunk_file_idx, chunk_file in enumerate(training_chunk_samples_files):
-            dataset = Chunked_sample_dataset(os.path.join(training_chunked_samples_dir, chunk_file), last_flow=False)
+            dataset = Chunked_sample_dataset(os.path.join(training_chunked_samples_dir, chunk_file), last_flow=True)
             dataloader = DataLoader(dataset=dataset, batch_size=batch_size, num_workers=num_workers, shuffle=True)
             for idx, train_data in tqdm(enumerate(dataloader),
                                         desc="Training Epoch %d, Chunk File %d" % (epoch + 1, chunk_file_idx),
@@ -79,7 +79,7 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
                 sample_imgs = sample_imgs.to(device)
 
 
-                out = model(sample_imgs)
+                out = model(sample_imgs[:,-6:,:,:])
                 loss_recon = mse_loss(out["recon"], sample_ofs)
                 loss_sparsity = (
                         torch.mean(torch.sum(-out["att_weight3"] * torch.log(out["att_weight3"] + 1e-12), dim=1))
