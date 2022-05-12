@@ -56,8 +56,8 @@ def evaluate(config, ckpt_path, testing_chunked_samples_dir, suffix):
 
     os.makedirs(eval_dir, exist_ok=True)
 
-    model = ML_MemAE_SC(num_in_ch=3,
-                        seq_len=5,
+    model = ML_MemAE_SC(num_in_ch=config["model_paras"]["motion_channels"],
+                        seq_len=config["model_paras"]["num_flows"],
                         features_root=config["model_paras"]["feature_root"],
                         num_slots=config["model_paras"]["num_slots"],
                         shrink_thres=config["model_paras"]["shrink_thres"],
@@ -75,7 +75,7 @@ def evaluate(config, ckpt_path, testing_chunked_samples_dir, suffix):
     testing_chunk_samples_files = sorted(os.listdir(testing_chunked_samples_dir))
     for chunk_file_idx, chunk_file in enumerate(testing_chunk_samples_files):
 
-      dataset_test = Chunked_sample_dataset(os.path.join(testing_chunked_samples_dir, chunk_file), last_flow=False)
+      dataset_test = Chunked_sample_dataset(os.path.join(testing_chunked_samples_dir, chunk_file), last_flow=True)
       dataloader_test = DataLoader(dataset=dataset_test, batch_size=128, num_workers=num_workers, shuffle=False)
 
       # bbox anomaly scores for each frame
@@ -85,7 +85,7 @@ def evaluate(config, ckpt_path, testing_chunked_samples_dir, suffix):
           sample_imgs_test, sample_ofs_test, bbox_test, pred_frame_test, indices_test = test_data
           sample_ofs_test = sample_ofs_test.cuda()
           sample_imgs_test = sample_imgs_test.cuda()
-          out_test = model(sample_imgs_test)
+          out_test = model(sample_ofs_test)
           loss_of_test = score_func(out_test["recon"], sample_ofs_test).cpu().data.numpy()
           scores = np.sum(np.sum(np.sum(loss_of_test, axis=3), axis=2), axis=1)
 

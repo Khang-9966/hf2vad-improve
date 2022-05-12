@@ -12,9 +12,9 @@ model_paras:
 dataset_base_dir: ./data
 dataset_name: ucf
 exp_name: ucf_ML_MemAE_SC
-ckpt_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ucf-improve-lan1/ckpt
-log_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ucf-improve-lan1/log
-eval_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ucf-improve-lan1/eval
+ckpt_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ucf-origin-lan1/ckpt
+log_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ucf-origin-lan1/log
+eval_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ucf-origin-lan1/eval
 device: cuda:0
 
 pretrained: False
