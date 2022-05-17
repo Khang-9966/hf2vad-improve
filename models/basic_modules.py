@@ -219,7 +219,7 @@ class VUnetResnetBlock(nn.Module):
         self.gated = gated
         if self.use_skip:
             self.conv2d = conv_layer(
-                in_channels=2 * out_channels,
+                in_channels=3 * out_channels,
                 out_channels=out_channels,
                 kernel_size=kernel_size,
                 padding=kernel_size // 2,
