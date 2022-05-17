@@ -172,6 +172,7 @@ class VUnetDecoder(nn.Module):
                             use_skip=True,
                             conv_layer=conv_layer,
                             dropout_prob=dropout_prob,
+                            decoder = True
                         )
                     }
                 )
