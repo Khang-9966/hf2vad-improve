@@ -11,9 +11,10 @@ import shutil
 from eval import evaluate
 from tqdm import tqdm
 
-from losses.loss import Gradient_Loss, Intensity_Loss, aggregate_kl_loss
+from losses.loss import Gradient_Loss, Intensity_Loss, aggregate_kl_loss, d_loss, g_loss
 from datasets.dataset import Chunked_sample_dataset, img_batch_tensor2numpy
 from models.mem_cvae import HFVAD
+from models.vunet import Discriminatornet
 
 from utils.initialization_utils import weights_init_kaiming
 from utils.vis_utils import visualize_sequences
@@ -59,7 +60,7 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
 
     optimizer = optim.Adam(model.vunet.parameters(), lr=lr, eps=1e-7, weight_decay=0.0)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=50, gamma=0.8)
-
+    
     step = 0
     epoch_last = 0
     if not config["pretrained"]:
@@ -69,7 +70,12 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
         model_state_dict, optimizer_state_dict, step = loader(config["pretrained"])
         model.load_state_dict(model_state_dict)
         optimizer.load_state_dict(optimizer_state_dict)
-
+    ############################## 
+    discriminator = Discriminatornet(config).to(device)
+    discriminator.apply(weights_init_kaiming)
+    dis_optimizer = optim.Adam(discriminator.parameters(), lr=lr, eps=1e-7, weight_decay=0.0)
+    dis_scheduler = torch.optim.lr_scheduler.StepLR(dis_optimizer, step_size=50, gamma=0.8)
+    ###################################
     writer = SummaryWriter(paths["log_dir"])
     shutil.copyfile("./cfgs/cfg.yaml", os.path.join(config["log_root"], config["exp_name"], "cfg.yaml"))
 
@@ -82,24 +88,36 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
                                         desc="Training Epoch %d, Chunked File %d" % (epoch + 1, chunk_file_idx),
                                         total=len(dataloader)):
                 model.vunet.train()
+                discriminator.train()
 
                 sample_frames, sample_ofs, _, _, _ = train_data
                 sample_ofs = sample_ofs.to(device)
-                sample_frames = sample_frames.to(device)
+                sample_frames = sample_frames.to(device)             
 
                 out = model(sample_frames, sample_ofs, mode="train")
 
+                loss_gen = g_loss(discriminator(out["frame_pred"],sample_ofs))
+   
                 loss_kl = aggregate_kl_loss(out["q_means"], out["p_means"])
                 loss_frame = intensity_loss(out["frame_pred"], out["frame_target"])
                 loss_grad = grad_loss(out["frame_pred"], out["frame_target"])
 
                 loss_all = config["lam_kl"] * loss_kl + \
                            config["lam_frame"] * loss_frame + \
-                           config["lam_grad"] * loss_grad
+                           config["lam_grad"] * loss_grad + \
+                           config["lam_gan"] * loss_gen
 
                 optimizer.zero_grad()
                 loss_all.backward()
                 optimizer.step()
+
+                real_dis_output = discriminator(out["frame_target"],sample_ofs)
+                fake_dis_output = discriminator(out["frame_pred"].detach(),sample_ofs)
+                dis_loss = d_loss(real_dis_output,fake_dis_output)
+
+                dis_optimizer.zero_grad()
+                dis_loss.backward()
+                dis_optimizer.step()   
 
                 if step % config["logevery"] == config["logevery"] - 1:
                     print("[Step: {}/ Epoch: {}]: Loss: {:.4f} ".format(step + 1, epoch + 1, loss_all))
@@ -142,6 +160,7 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
             del dataset
 
         scheduler.step()
+        dis_scheduler.step()
 
         if epoch % config["saveevery"] == config["saveevery"] - 1:
             model_save_path = os.path.join(paths["ckpt_dir"], config["model_savename"])

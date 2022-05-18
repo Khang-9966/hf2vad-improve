@@ -20,9 +20,9 @@ device: cuda:0
 dataset_base_dir: ./data
 dataset_name: ped2
 exp_name: ped2_ML_MemAE_SC_CVAE
-ckpt_root: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-posecat/ckpt
-log_root: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-posecat/log
-eval_root: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-posecat/eval
+ckpt_root: ./ckpt
+log_root: ./log
+eval_root: ./eval
 
 ML_MemAE_SC_pretrained: /content/drive/MyDrive/Checkpoint/hf2vad-ped2lan3-improve/ckpt/ped2_ML_MemAE_SC/best.pth
 pretrained: False
@@ -48,6 +48,7 @@ lam_frame: 1.0
 lam_kl: 1.0
 # lambda for gradient loss
 lam_grad: 1.0
+lam_gan: 1.0
 
 w_r: 0.05
 w_p: 1.0

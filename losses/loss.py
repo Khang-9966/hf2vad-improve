@@ -1,6 +1,12 @@
 import torch
 import torch.nn as nn
 
+BCEWithLogits = nn.BCEWithLogitsLoss()
+def d_loss(D_real_logits,D_fake_logits):
+  return torch.mean(BCEWithLogits(D_real_logits, torch.ones_like(D_real_logits)) + BCEWithLogits(D_fake_logits, torch.zeros_like(D_fake_logits)))
+
+def g_loss(D_fake_logits):
+  return torch.mean(BCEWithLogits(D_fake_logits, torch.ones_like(D_fake_logits)))
 
 def latent_kl(prior_mean, posterior_mean):
     kl = 0.5 * torch.pow(prior_mean - posterior_mean, 2)

@@ -371,7 +371,7 @@ class VUnet(nn.Module):
         output_channels = img_channels * clip_pred
 
         # define required parameters
-        n_stages = 1 + int(np.round(np.log2(spatial_size))) - 2
+        n_stages = 1 + int(np.round(np.log2(spatial_size))) - 2 
 
         conv_layer_type = Conv2d if final_act else NormConv2d
 
@@ -435,6 +435,7 @@ class VUnet(nn.Module):
         # posterior
         x_f_in = torch.cat((inputs['appearance'], inputs['motion']), dim=1)
         x_f = self.f_phi(x_f_in)
+
         # params and samples of the posterior
         q_means, zs = self.zc(x_f)
 
@@ -451,3 +452,54 @@ class VUnet(nn.Module):
 
         self.saved_tensors = dict(q_means=q_means, p_means=p_means)
         return out_img
+
+class Discriminatornet(nn.Module):
+    def __init__(self, config):
+        super().__init__()
+
+        self.config = config
+
+        final_act = retrieve(config, "model_paras/final_act", default=False)
+        nf_max = 256
+        nf_start = retrieve(config, "model_paras/nf_start", default=64)
+        spatial_size = retrieve(config, "model_paras/spatial_size", default=256)
+        dropout_prob = retrieve(config, "model_paras/dropout_prob", default=0.1)
+        img_channels = retrieve(config, "model_paras/img_channels", default=3)
+        motion_channels = retrieve(config, "model_paras/motion_channels", default=2)
+        clip_hist = retrieve(config, "model_paras/clip_hist", default=4)
+        clip_pred = retrieve(config, "model_paras/clip_pred", default=1)
+        num_flows = retrieve(config, "model_paras/num_flows", default=4)
+        device = retrieve(config, "device", default="cuda:0")
+        output_channels = img_channels * clip_pred
+
+        # define required parameters
+        n_stages = 6
+
+        conv_layer_type = Conv2d if final_act else NormConv2d
+
+        # prosterior p( z | x_{1:t},y_{1:t} )
+        self.f_phi = VUnetEncoder(
+            n_stages=n_stages,
+            nf_in=img_channels + motion_channels * num_flows,
+            nf_start=nf_start,
+            nf_max=nf_max,
+            conv_layer=conv_layer_type,
+            dropout_prob=dropout_prob,
+        )
+        self.saved_tensors = None
+
+        self.con1d = nn.Conv2d(in_channels=nf_max, out_channels=nf_max, kernel_size=1, padding=0)
+
+    def forward(self, appearance, motion):
+        '''
+        Two possible usage：
+
+        1. train stage, sampling z from the posterior p(z | x_{1:t},y_{1:t} )
+        2. test stage, use the mean of the posterior as sampled z
+        '''
+        # posterior
+        x_f_in = torch.cat((appearance, motion), dim=1)
+        x_f = self.f_phi(x_f_in)
+        
+        logit_output =  self.con1d(x_f["s6_2"])
+        return logit_output
