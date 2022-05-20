@@ -21,12 +21,14 @@ device: cuda:0
 dataset_base_dir: ./data
 dataset_name: ped2
 exp_name: ped2_ML_MemAE_SC_CVAE_finetune
-ckpt_root: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-posecat/ckpt
-log_root:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-posecat/log
-eval_root: /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-posecat/eval
+ckpt_root: ./ckpt
+log_root:  ./log
+eval_root: ./eval
 
 ML_MemAE_SC_pretrained: False
-pretrained:  /content/drive/MyDrive/Checkpoint/hf2vad-ped2-trueopscon-posecat/ckpt/ped2_ML_MemAE_SC_CVAE/best.pth
+pretrained:  ./ckpt/ped2_ML_MemAE_SC_CVAE/best.pth
+dis_pretrained:  ./ckpt/ped2_ML_MemAE_SC_CVAE/discri_best.pth
+
 model_savename: model.pth
 # num of iterations to log
 logevery: 100
@@ -53,6 +55,7 @@ lam_grad: 1.0
 lam_sparse: 0.0002
 # lambda for flow recon. loss
 lam_recon: 1.0
+lam_gan: 1.0
 
 w_r: 0.05
 w_p: 1.0

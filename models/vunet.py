@@ -172,7 +172,7 @@ class VUnetDecoder(nn.Module):
                             use_skip=True,
                             conv_layer=conv_layer,
                             dropout_prob=dropout_prob,
-                            decoder = True
+                            decoder = False
                         )
                     }
                 )
@@ -184,14 +184,14 @@ class VUnetDecoder(nn.Module):
         # if self.final_act:
         self.final_act = nn.Sigmoid()
 
-    def forward(self, x, skips, flow_skips):
+    def forward(self, x, skips):
         out = x
         for i_s in range(self.n_stages - 2, 0, -1):
             out = self.ups[f"s{i_s + 1}"](out)
 
             for ir in range(self.n_rnb, 0, -1):
                 stage = f"s{i_s}_{ir}"
-                out = self.blocks[stage](out, torch.cat((skips[stage],flow_skips[stage]) ,dim = 1))
+                out = self.blocks[stage](out, skips[stage])
 
         out = self.final_layer(out)
         if self.final_act:  # final activation
@@ -448,7 +448,7 @@ class VUnet(nn.Module):
             out_b, p_means, ps = self.bottleneck(x_e, q_means)
 
         # decode, feed in the output of bottleneck and the skip connections
-        out_img = self.decoder(out_b, x_f, x_e)
+        out_img = self.decoder(out_b, x_f)
 
         self.saved_tensors = dict(q_means=q_means, p_means=p_means)
         return out_img

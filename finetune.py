@@ -10,7 +10,8 @@ from torch import optim
 from tensorboardX import SummaryWriter
 from tqdm import tqdm
 
-from losses.loss import Gradient_Loss, Intensity_Loss, aggregate_kl_loss
+from models.vunet import Discriminatornet
+from losses.loss import Gradient_Loss, Intensity_Loss, aggregate_kl_loss, d_loss, g_loss
 from datasets.dataset import Chunked_sample_dataset, img_batch_tensor2numpy
 
 from models.mem_cvae import HFVAD
@@ -59,7 +60,14 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
         assert (config["pretrained"] is not None)
         model_state_dict = torch.load(config["pretrained"])["model_state_dict"]
         model.load_state_dict(model_state_dict)
-
+    ############################## 
+    discriminator = Discriminatornet(config).to(device)
+    # discriminator.apply(weights_init_kaiming)
+    dis_optimizer = optim.Adam(discriminator.parameters(), lr=lr, eps=1e-7, weight_decay=0.0)
+    dis_scheduler = torch.optim.lr_scheduler.StepLR(dis_optimizer, step_size=50, gamma=0.8)
+    dis_model_state_dict = torch.load(config["dis_pretrained"])["model_state_dict"]
+    discriminator.load_state_dict(dis_model_state_dict)
+    ###################################
     writer = SummaryWriter(paths["log_dir"])
     # copy hyper-params settings
     shutil.copyfile("./cfgs/finetune_cfg.yaml",
@@ -74,12 +82,14 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
                                         desc="Training Epoch %d, Chunked File %d" % (epoch + 1, chunk_file_idx),
                                         total=len(dataloader)):
                 model.train()
+                discriminator.train()
 
                 sample_frames, sample_ofs, _, _, _ = train_data
                 sample_ofs = sample_ofs.to(device)
                 sample_frames = sample_frames.to(device)
 
                 out = model(sample_frames, sample_ofs, mode="train")
+                loss_gen = g_loss(discriminator(out["frame_pred"],sample_ofs))
 
                 # loss of ML-MemAE-SC
                 loss_sparsity = out["loss_sparsity"]
@@ -93,11 +103,21 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
                            config["lam_frame"] * loss_frame + \
                            config["lam_grad"] * loss_grad + \
                            config["lam_sparse"] * loss_sparsity + \
-                           config["lam_recon"] * loss_flow_recon
+                           config["lam_recon"] * loss_flow_recon + \
+                           config["lam_gan"] * loss_gen
+
 
                 optimizer.zero_grad()
                 loss_all.backward()
                 optimizer.step()
+
+                real_dis_output = discriminator(out["frame_target"],sample_ofs)
+                fake_dis_output = discriminator(out["frame_pred"].detach(),sample_ofs)
+                dis_loss = d_loss(real_dis_output,fake_dis_output)
+
+                dis_optimizer.zero_grad()
+                dis_loss.backward()
+                dis_optimizer.step()   
 
                 if step % config["logevery"] == config["logevery"] - 1:
                     print("[Step: {}/ Epoch: {}]: Loss: {:.4f} ".format(step + 1, epoch + 1, loss_all))
@@ -160,6 +180,7 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
 
                 if auc > best_auc:
                     best_auc = auc
+                    only_model_saver(discriminator.state_dict(), os.path.join(paths["ckpt_dir"], "discri_best.pth"))
                     only_model_saver(model.state_dict(), os.path.join(paths["ckpt_dir"], "best.pth"))
                 print("================ Best AUC %.4f ================" % best_auc)
                 writer.add_scalar("auc", auc, global_step=epoch + 1)
