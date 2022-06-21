@@ -92,10 +92,10 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
                 loss_kl = aggregate_kl_loss(out["q_means"], out["p_means"])
                 loss_frame = intensity_loss(out["frame_pred"], out["frame_target"])
                 loss_grad = grad_loss(out["frame_pred"], out["frame_target"])
-
+                
                 loss_all = config["lam_kl"] * loss_kl + \
                            config["lam_frame"] * loss_frame + \
-                           config["lam_grad"] * loss_grad
+                           config["lam_grad"] * loss_grad + out["app_loss_sparsity"]
 
                 optimizer.zero_grad()
                 loss_all.backward()

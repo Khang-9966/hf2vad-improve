@@ -71,10 +71,10 @@ class HFVAD(nn.Module):
         frame_target = sample_frame[:, -self.x_ch * self.num_pred:, :, :]
 
         input_dict = dict(appearance=frame_in, motion=of_recon, true_motion=sample_of)
-        frame_pred = self.vunet(input_dict, mode=mode)
+        frame_pred,app_loss_sparsity = self.vunet(input_dict, mode=mode)
 
         out = dict(frame_pred=frame_pred, frame_target=frame_target,
-                   of_recon=of_recon, of_target=sample_of)
+                   of_recon=of_recon, of_target=sample_of,app_loss_sparsity=app_loss_sparsity)
         out.update(self.vunet.saved_tensors)
 
         if self.finetune:

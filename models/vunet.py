@@ -11,7 +11,50 @@ from models.basic_modules import (
     SpaceToDepth,
     DepthToSpace,
 )
+import math
+from models.basic_modules import *
 
+# relu based hard shrinkage function, only works for positive values
+def hard_shrink_relu(input, lambd=0., epsilon=1e-12):
+    output = (F.relu(input - lambd) * input) / (torch.abs(input - lambd) + epsilon)
+    return output
+
+class Memory(nn.Module):
+    def __init__(self, num_slots, slot_dim, shrink_thres=0.0025):
+        super(Memory, self).__init__()
+        self.num_slots = num_slots
+        self.slot_dim = slot_dim
+
+        self.memMatrix = nn.Parameter(torch.empty(num_slots, slot_dim))  # M,C
+        self.shrink_thres = shrink_thres
+
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.memMatrix.size(1))
+        self.memMatrix.data.uniform_(-stdv, stdv)
+
+    def forward(self, x):
+        """
+        :param x: query features with size [N,C], where N is the number of query items,
+                  C is same as dimension of memory slot
+
+        :return: query output retrieved from memory, with the same size as x.
+        """
+        # dot product
+        att_weight = F.linear(input=x, weight=self.memMatrix)  # [N,C] by [M,C]^T --> [N,M]
+        att_weight = F.softmax(att_weight, dim=1)  # NxM
+
+        # if use hard shrinkage
+        if self.shrink_thres > 0:
+            att_weight = hard_shrink_relu(att_weight, lambd=self.shrink_thres)  # [N,M]
+            # normalize
+            att_weight = F.normalize(att_weight, p=1, dim=1)  # [N,M]
+
+        # out slot
+        out = F.linear(att_weight, self.memMatrix.permute(1, 0))  # [N,M] by [M,C]  --> [N,C]
+
+        return dict(out=out, att_weight=att_weight)
 
 class VUnetEncoder(nn.Module):
     def __init__(
@@ -262,6 +305,7 @@ class VUnetBottleneck(nn.Module):
         use_z = True
 
         h = self.conv1x1(x_e[f"s{self.n_stages}_2"])
+
         for i_s in range(self.n_stages, self.n_stages - 2, -1):
             stage = f"s{i_s}"
             spatial_size = x_e[stage + "_2"].shape[-1]
@@ -328,7 +372,7 @@ class VUnetBottleneck(nn.Module):
             gz = torch.cat([x_e[stage + "_1"], z], dim=1)  # cat z and E(y_{1:t})
             gz = self.channel_norm[stage](gz)
             h = self.blocks[stage + "_1"](h, gz)
-
+  
             if i_s == self.n_stages:
                 h = self.up(h)
 
@@ -424,6 +468,34 @@ class VUnet(nn.Module):
         )
         self.saved_tensors = None
 
+        # memory modules
+      
+        # self.mem_s1_1 = Memory(num_slots=2000, slot_dim=64 * 32 * 32,
+        #                    shrink_thres=0.0005) 
+        # self.mem_s1_2 = Memory(num_slots=2000, slot_dim=64 * 32 * 32,
+        #                    shrink_thres=0.0005) 
+        # self.mem_s2_1 = Memory(num_slots=2000, slot_dim=128 * 16 * 16,
+        #                    shrink_thres=0.0005) 
+        # self.mem_s2_2 = Memory(num_slots=2000, slot_dim=128 * 16 * 16,
+        #                    shrink_thres=0.0005) 
+        self.mem_s3_1 = Memory(num_slots=2000, slot_dim=128 * 8 * 8,
+                           shrink_thres=0.0005) 
+        self.mem_s4_1 = Memory(num_slots=2000, slot_dim=128 * 4 * 4,
+                           shrink_thres=0.0005) 
+
+    def mem_forward(self,mem,x):
+      # flatten [bs,C,H,W] --> [bs,C*H*W]
+      bs, C, H, W = x.shape
+      x3 = x.view(bs, -1)
+      mem_out = mem(x3)
+      x = mem_out["out"]
+      # attention weight size [bs,N], N is num_slots
+      att_weight = mem_out["att_weight"]
+      # unflatten
+      x = x.view(bs, C, H, W)
+      return x,att_weight
+
+
     def forward(self, inputs, mode="train"):
         '''
         Two possible usage：
@@ -439,14 +511,35 @@ class VUnet(nn.Module):
 
         # encoding features of flows
         x_e = self.e_theta(inputs['true_motion'])
+      
+        # x_f['s1_1'] = self.mem_forward(self.mem_s1_1,x_f['s1_1'])
+        # x_f['s1_2'] = self.mem_forward(self.mem_s1_2,x_f['s1_2'])
+        # x_f['s2_1'] = self.mem_forward(self.mem_s2_1,x_f['s2_1'])
+        # x_f['s2_2'] = self.mem_forward(self.mem_s2_2,x_f['s2_2'])
+        x_f['s3_1'],att_w_s3_1 = self.mem_forward(self.mem_s3_1,x_f['s3_1'])
+        x_f['s4_1'],att_w_s4_1 = self.mem_forward(self.mem_s4_1,x_f['s4_1'])
+
+        att_w_s3_1 = torch.cat([att_w_s3_1], dim=0)
+        att_w_s4_1 = torch.cat([att_w_s4_1], dim=0)
+
+        loss_sparsity = torch.mean(
+            torch.sum(-att_w_s3_1 * torch.log(att_w_s3_1 + 1e-12), dim=1)
+        ) + torch.mean(
+            torch.sum(-att_w_s4_1 * torch.log(att_w_s4_1 + 1e-12), dim=1)
+        )
 
         if mode == "train":
             out_b, p_means, ps = self.bottleneck(x_e, zs)  # h, p_params, z_prior
         else:
             out_b, p_means, ps = self.bottleneck(x_e, q_means)
+        
+        # print([name for name in x_f])
+        # for name in x_f:
+        #   print(name)
+        #   print(x_f[name].shape)
 
         # decode, feed in the output of bottleneck and the skip connections
         out_img = self.decoder(out_b, x_f)
 
         self.saved_tensors = dict(q_means=q_means, p_means=p_means)
-        return out_img
+        return out_img,loss_sparsity
