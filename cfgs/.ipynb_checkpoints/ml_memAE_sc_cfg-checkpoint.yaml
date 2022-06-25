@@ -14,7 +14,7 @@ dataset_name: shanghaitech
 exp_name: shanghaitech_ML_MemAE_SC
 ckpt_root:  /home/jovyan/workspace/Checkpoints/shanghaitech-trueopscondi/ckpt
 log_root:  /home/jovyan/workspace/Checkpoints/shanghaitech-trueopscondi/log
-eval_root:  /home/jovyan/workspace/Caheckpoints/shanghaitech-trueopscondi/eval
+eval_root:  /home/jovyan/workspace/Checkpoints/shanghaitech-trueopscondi/eval
 device: cuda:0
 
 pretrained: False
