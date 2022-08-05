@@ -11,7 +11,105 @@ from models.basic_modules import (
     SpaceToDepth,
     DepthToSpace,
 )
+import math
+from models.basic_modules import *
+from torch.nn.parameter import Parameter
+from torch.nn import functional as F
+#
+class MemoryUnit(nn.Module):
+    def __init__(self, mem_dim, fea_dim, shrink_thres=0.0025):
+        super(MemoryUnit, self).__init__()
+        self.mem_dim = mem_dim
+        self.fea_dim = fea_dim
+        self.weight = Parameter(torch.Tensor(self.mem_dim, self.fea_dim))  # M x C
+        self.bias = None
+        self.shrink_thres= shrink_thres
+        # self.hard_sparse_shrink_opt = nn.Hardshrink(lambd=shrink_thres)
 
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        stdv = 1. / math.sqrt(self.weight.size(1))
+        self.weight.data.uniform_(-stdv, stdv)
+        if self.bias is not None:
+            self.bias.data.uniform_(-stdv, stdv)
+
+    def forward(self, input):
+        att_weight = F.linear(input, self.weight)  # Fea x Mem^T, (TxC) x (CxM) = TxM
+        att_weight = F.softmax(att_weight, dim=1)  # TxM
+        # ReLU based shrinkage, hard shrinkage for positive value
+        if(self.shrink_thres>0):
+            att_weight = hard_shrink_relu(att_weight, lambd=self.shrink_thres)
+            # att_weight = F.softshrink(att_weight, lambd=self.shrink_thres)
+            # normalize???
+            att_weight = F.normalize(att_weight, p=1, dim=1)
+            # att_weight = F.softmax(att_weight, dim=1)
+            # att_weight = self.hard_sparse_shrink_opt(att_weight)
+        mem_trans = self.weight.permute(1, 0)  # Mem^T, MxC
+        output = F.linear(att_weight, mem_trans)  # AttWeight x Mem^T^T = AW x Mem, (TxM) x (MxC) = TxC
+        return {'output': output, 'att': att_weight}  # output, att_weight
+
+    def extra_repr(self):
+        return 'mem_dim={}, fea_dim={}'.format(
+            self.mem_dim, self.fea_dim is not None
+        )
+
+
+# NxCxHxW -> (NxHxW)xC -> addressing Mem, (NxHxW)xC -> NxCxHxW
+class MemModule(nn.Module):
+    def __init__(self, mem_dim, fea_dim, shrink_thres=0.0025, device='cuda'):
+        super(MemModule, self).__init__()
+        self.mem_dim = mem_dim
+        self.fea_dim = fea_dim
+        self.shrink_thres = shrink_thres
+        self.memory = MemoryUnit(self.mem_dim, self.fea_dim, self.shrink_thres)
+
+    def forward(self, input):
+        s = input.data.shape
+        l = len(s)
+
+        if l == 3:
+            x = input.permute(0, 2, 1)
+        elif l == 4:
+            x = input.permute(0, 2, 3, 1)
+        elif l == 5:
+            x = input.permute(0, 2, 3, 4, 1)
+        else:
+            x = []
+            print('wrong feature map size')
+        x = x.contiguous()
+        x = x.view(-1, s[1])
+        #
+        y_and = self.memory(x)
+        #
+        y = y_and['output']
+        att = y_and['att']
+
+        if l == 3:
+            y = y.view(s[0], s[2], s[1])
+            y = y.permute(0, 2, 1)
+            att = att.view(s[0], s[2], self.mem_dim)
+            att = att.permute(0, 2, 1)
+        elif l == 4:
+            y = y.view(s[0], s[2], s[3], s[1])
+            y = y.permute(0, 3, 1, 2)
+            att = att.view(s[0], s[2], s[3], self.mem_dim)
+            att = att.permute(0, 3, 1, 2)
+        elif l == 5:
+            y = y.view(s[0], s[2], s[3], s[4], s[1])
+            y = y.permute(0, 4, 1, 2, 3)
+            att = att.view(s[0], s[2], s[3], s[4], self.mem_dim)
+            att = att.permute(0, 4, 1, 2, 3)
+        else:
+            y = x
+            att = att
+            print('wrong feature map size')
+        return {'out': y, 'att_weight': att}
+
+# relu based hard shrinkage function, only works for positive values
+def hard_shrink_relu(input, lambd=0, epsilon=1e-12):
+    output = (F.relu(input-lambd) * input) / (torch.abs(input - lambd) + epsilon)
+    return output
 
 class VUnetEncoder(nn.Module):
     def __init__(
@@ -165,11 +263,15 @@ class VUnetDecoder(nn.Module):
             # resnet blocks
             for ir in range(self.n_rnb, 0, -1):
                 stage = f"s{i_s}_{ir}"
+                skip_ = True
+                if stage == "s1_2" or stage == "s1_1" or stage == "s2_1" :
+                  skip_ = False
+                  print(stage,skip_)
                 self.blocks.update(
                     {
                         stage: VUnetResnetBlock(
                             nf,
-                            use_skip=True,
+                            use_skip=skip_,
                             conv_layer=conv_layer,
                             dropout_prob=dropout_prob,
                         )
@@ -424,6 +526,17 @@ class VUnet(nn.Module):
         )
         self.saved_tensors = None
 
+        # self.mem_s4_1 = MemModule(num_slots=2000, slot_dim=128 * 4 * 4,
+        #                     shrink_thres=0.0005) 
+        # self.mem_s3_1 = MemModule(num_slots=2000, slot_dim=128 * 8 * 8,
+        #                     shrink_thres=0.0005) 
+        # self.mem_s2_1 = MemModule(num_slots=2000, slot_dim=128 * 16 * 16,
+        #                     shrink_thres=0.0005) 
+
+        self.mem_s2_2 = MemModule(mem_dim=2000, fea_dim=128 ,
+                    shrink_thres=0.0005) 
+
+
     def forward(self, inputs, mode="train"):
         '''
         Two possible usage：
@@ -434,11 +547,47 @@ class VUnet(nn.Module):
         # posterior
         x_f_in = torch.cat((inputs['appearance'], inputs['motion']), dim=1)
         x_f = self.f_phi(x_f_in)
+
+        ########################
+        # bs, C, H, W = x_f["s4_1"].shape
+        # x_f["s4_1"] = x_f["s4_1"].view(bs, -1)
+        # mems4_1_out = self.mem_s4_1(x_f["s4_1"]) 
+        # att_weight_s4_1 = mems4_1_out["att_weight"]
+        # x_f["s4_1"] = mems4_1_out["out"].view(bs, C, H, W)
+
+        # bs, C, H, W = x_f["s3_1"].shape
+        # x_f["s3_1"] = x_f["s3_1"].view(bs, -1)
+        # mems3_1_out = self.mem_s3_1(x_f["s3_1"]) 
+        # att_weight_s3_1 = mems3_1_out["att_weight"]
+        # x_f["s3_1"] = mems3_1_out["out"].view(bs, C, H, W)
+
+        # bs, C, H, W = x_f["s2_1"].shape
+        # x_f["s2_1"] = x_f["s2_1"].view(bs, -1)
+        # mems2_1_out = self.mem_s2_1(x_f["s2_1"]) 
+        # att_weight_s2_1 = mems2_1_out["att_weight"]
+        # x_f["s2_1"] = mems2_1_out["out"].view(bs, C, H, W)
+
+        # bs, C, H, W = x_f["s2_2"].shape
+        # x_f["s2_2"] = x_f["s2_2"].view(bs, -1)
+        mems2_2_out = self.mem_s2_2(x_f["s2_2"]) 
+        att_weight_s2_2 = mems2_2_out["att_weight"]
+        x_f["s2_2"] = mems2_2_out["out"]
+        att = 0
+        att = torch.mean( 
+                torch.sum(-att_weight_s2_2 * torch.log(att_weight_s2_2 + 1e-12), dim=1) )
+        #     ) + torch.mean(
+        #         torch.sum(-att_weight_s2_1 * torch.log(att_weight_s2_1 + 1e-12), dim=1)
+        #     ) + torch.mean(
+        #         torch.sum(-att_weight_s3_1 * torch.log(att_weight_s3_1 + 1e-12), dim=1)
+        #     )+ torch.mean(
+        #         torch.sum(-att_weight_s4_1 * torch.log(att_weight_s4_1 + 1e-12), dim=1)
+        #     )
+
         # params and samples of the posterior
         q_means, zs = self.zc(x_f)
 
         # encoding features of flows
-        x_e = self.e_theta(inputs['true_motion'])
+        x_e = self.e_theta(inputs['motion'])
 
         if mode == "train":
             out_b, p_means, ps = self.bottleneck(x_e, zs)  # h, p_params, z_prior
@@ -449,4 +598,4 @@ class VUnet(nn.Module):
         out_img = self.decoder(out_b, x_f)
 
         self.saved_tensors = dict(q_means=q_means, p_means=p_means)
-        return out_img
+        return out_img,att

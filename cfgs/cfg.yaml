@@ -18,20 +18,20 @@ model_paras:
 
 device: cuda:0
 dataset_base_dir: ./data
-dataset_name: avenue
-exp_name: avenue_ML_MemAE_SC_CVAE
+dataset_name: ped2
+exp_name: ped2_ML_MemAE_SC_CVAE
 ckpt_root: ./ckpt
 log_root: ./log
 eval_root: ./eval
 
-ML_MemAE_SC_pretrained: /content/drive/MyDrive/Checkpoint/hf2vad-avenue-improve/ckpt/avenue_ML_MemAE_SC/best.pth
+ML_MemAE_SC_pretrained: ./ckpt/ped2_ML_MemAE_SC/best.pth
 pretrained: False
 model_savename: model.pth
 # num of iterations to log
 logevery: 100
 
 # num of epoch to save models
-saveevery: 1
+saveevery: 20
 
 # training setting
 num_epochs: 40

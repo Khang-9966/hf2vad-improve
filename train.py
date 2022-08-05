@@ -95,7 +95,7 @@ def train(config, training_chunked_samples_dir, testing_chunked_samples_file):
 
                 loss_all = config["lam_kl"] * loss_kl + \
                            config["lam_frame"] * loss_frame + \
-                           config["lam_grad"] * loss_grad
+                           config["lam_grad"] * loss_grad + out["app_loss_sparsity"]
 
                 optimizer.zero_grad()
                 loss_all.backward()
