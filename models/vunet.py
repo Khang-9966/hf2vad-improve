@@ -13,7 +13,7 @@ from models.basic_modules import (
 )
 import math
 from models.basic_modules import *
-
+from models.simple_unet import SimpleUnet
 # relu based hard shrinkage function, only works for positive values
 def hard_shrink_relu(input, lambd=0., epsilon=1e-12):
     output = (F.relu(input - lambd) * input) / (torch.abs(input - lambd) + epsilon)
@@ -208,11 +208,15 @@ class VUnetDecoder(nn.Module):
             # resnet blocks
             for ir in range(self.n_rnb, 0, -1):
                 stage = f"s{i_s}_{ir}"
+                skip_ = True
+                if stage == "s1_2" or stage == "s1_1" : # or stage == "s2_1" :
+                  skip_ = False
+                  print(stage,skip_)
                 self.blocks.update(
                     {
                         stage: VUnetResnetBlock(
                             nf,
-                            use_skip=True,
+                            use_skip=skip_,
                             conv_layer=conv_layer,
                             dropout_prob=dropout_prob,
                         )
@@ -466,22 +470,13 @@ class VUnet(nn.Module):
             final_act=final_act,
             dropout_prob=dropout_prob,
         )
+        
         self.saved_tensors = None
-
-        # memory modules
-      
-        # self.mem_s1_1 = Memory(num_slots=2000, slot_dim=64 * 32 * 32,
-        #                    shrink_thres=0.0005) 
-        # self.mem_s1_2 = Memory(num_slots=2000, slot_dim=64 * 32 * 32,
-        #                    shrink_thres=0.0005) 
-        # self.mem_s2_1 = Memory(num_slots=2000, slot_dim=128 * 16 * 16,
-        #                    shrink_thres=0.0005) 
-        # self.mem_s2_2 = Memory(num_slots=2000, slot_dim=128 * 16 * 16,
-        #                    shrink_thres=0.0005) 
-        self.mem_s3_1 = Memory(num_slots=2000, slot_dim=128 * 8 * 8,
-                           shrink_thres=0.0005) 
-        self.mem_s4_1 = Memory(num_slots=2000, slot_dim=128 * 4 * 4,
-                           shrink_thres=0.0005) 
+     
+        self.s2_1_unet = SimpleUnet(features_root=128, raw_channel_num=128)
+        self.s2_2_unet = SimpleUnet(features_root=128, raw_channel_num=128)
+        # self.s1_1_unet = SimpleUnet(features_root=64, raw_channel_num=64)
+        # self.s1_2_unet = SimpleUnet(features_root=64, raw_channel_num=64)
 
     def mem_forward(self,mem,x):
       # flatten [bs,C,H,W] --> [bs,C*H*W]
@@ -508,25 +503,23 @@ class VUnet(nn.Module):
         x_f = self.f_phi(x_f_in)
         # params and samples of the posterior
         q_means, zs = self.zc(x_f)
-
+        loss_sparsity = 0
         # encoding features of flows
-        x_e = self.e_theta(inputs['true_motion'])
-      
-        # x_f['s1_1'] = self.mem_forward(self.mem_s1_1,x_f['s1_1'])
-        # x_f['s1_2'] = self.mem_forward(self.mem_s1_2,x_f['s1_2'])
-        # x_f['s2_1'] = self.mem_forward(self.mem_s2_1,x_f['s2_1'])
-        # x_f['s2_2'] = self.mem_forward(self.mem_s2_2,x_f['s2_2'])
-        x_f['s3_1'],att_w_s3_1 = self.mem_forward(self.mem_s3_1,x_f['s3_1'])
-        x_f['s4_1'],att_w_s4_1 = self.mem_forward(self.mem_s4_1,x_f['s4_1'])
+        x_e = self.e_theta(inputs['motion'])
 
-        att_w_s3_1 = torch.cat([att_w_s3_1], dim=0)
-        att_w_s4_1 = torch.cat([att_w_s4_1], dim=0)
+        x_f['s2_2']  = self.s2_2_unet(x_f['s2_2'])
+        x_f['s2_1']  = self.s2_1_unet(x_f['s2_1'])
+        # x_f['s1_2']  = self.s1_2_unet(x_f['s1_2'])
+        # x_f['s1_1']  = self.s1_1_unet(x_f['s1_1'])
 
-        loss_sparsity = torch.mean(
-            torch.sum(-att_w_s3_1 * torch.log(att_w_s3_1 + 1e-12), dim=1)
-        ) + torch.mean(
-            torch.sum(-att_w_s4_1 * torch.log(att_w_s4_1 + 1e-12), dim=1)
-        )
+        # att_w_s3_1 = torch.cat([att_w_s3_1], dim=0)
+        # att_w_s4_1 = torch.cat([att_w_s4_1], dim=0)
+
+        # loss_sparsity = torch.mean(
+        #     torch.sum(-att_w_s3_1 * torch.log(att_w_s3_1 + 1e-12), dim=1)
+        # ) + torch.mean(
+        #     torch.sum(-att_w_s4_1 * torch.log(att_w_s4_1 + 1e-12), dim=1)
+        # )
 
         if mode == "train":
             out_b, p_means, ps = self.bottleneck(x_e, zs)  # h, p_params, z_prior
