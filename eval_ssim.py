@@ -91,11 +91,11 @@ def evaluate(config, ckpt_path, testing_chunked_samples_file, training_stats_pat
 
     for test_data in tqdm(dataloader_test, desc="Eval: ", total=len(dataloader_test)):
 
-        sample_frames_test, _, sample_masks_test, bbox_test, pred_frame_test, indices_test = test_data
+        sample_frames_test, sample_ofs_test, bbox_test, pred_frame_test, indices_test = test_data
         sample_frames_test = sample_frames_test.to(device)
-        sample_masks_test = sample_masks_test.to(device)
+        sample_ofs_test = sample_ofs_test.to(device)
 
-        out_test = model(sample_frames_test, sample_masks_test, mode="test")
+        out_test = model(sample_frames_test, sample_ofs_test, mode="test")
         
         
         loss_of_test = score_func(out_test["of_recon"], out_test["of_target"]).cpu().data.numpy()
