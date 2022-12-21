@@ -438,7 +438,7 @@ class VUnet(nn.Module):
         q_means, zs = self.zc(x_f)
 
         # encoding features of flows
-        x_e = self.e_theta(inputs['motion'])
+        x_e = self.e_theta(inputs['true_motion'])
 
         if mode == "train":
             out_b, p_means, ps = self.bottleneck(x_e, zs)  # h, p_params, z_prior
