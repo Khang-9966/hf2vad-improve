@@ -363,7 +363,7 @@ class VUnet(nn.Module):
         dropout_prob = retrieve(config, "model_paras/dropout_prob", default=0.1)
         img_channels = retrieve(config, "model_paras/img_channels", default=3)
         motion_channels = retrieve(config, "model_paras/motion_channels", default=2)
-        clip_hist = retrieve(config, "model_paras/clip_hist", default=4)
+        clip_hist = 1
         clip_pred = retrieve(config, "model_paras/clip_pred", default=1)
         num_flows = retrieve(config, "model_paras/num_flows", default=4)
         device = retrieve(config, "device", default="cuda:0")
