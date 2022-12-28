@@ -67,8 +67,11 @@ class HFVAD(nn.Module):
                 torch.sum(-att_weight1 * torch.log(att_weight1 + 1e-12), dim=1)
             )
 
-        frame_in = sample_frame[:, :-self.x_ch * self.num_pred, :, :]
-        frame_target = sample_frame[:, -self.x_ch * self.num_pred:, :, :]
+#         frame_in = sample_frame[:, :-self.x_ch * self.num_pred, :, :]
+#         frame_target = sample_frame[:, -self.x_ch * self.num_pred:, :, :]
+        
+        frame_in = sample_frame[:, -self.x_ch * self.num_pred * 2 :-self.x_ch * self.num_pred, :, :]
+        frame_target = sample_frame[:, -self.x_ch * self.num_pred * 2 : -self.x_ch * self.num_pred, :, :]
 
         input_dict = dict(appearance=frame_in, motion=of_recon, true_motion=sample_of)
         frame_pred = self.vunet(input_dict, mode=mode)
