@@ -3,7 +3,7 @@ from torch import nn
 from torch.nn import ModuleDict, ModuleList, Conv2d
 import numpy as np
 from edflow.util import retrieve
-from models.basic_modules import (
+from hf2vad_models.basic_modules import (
     VUnetResnetBlock,
     Upsample,
     Downsample,

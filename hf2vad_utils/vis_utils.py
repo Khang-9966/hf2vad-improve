@@ -1,4 +1,4 @@
-from utils.flow_utils import flow2img
+from hf2vad_utils.flow_utils import flow2img
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np

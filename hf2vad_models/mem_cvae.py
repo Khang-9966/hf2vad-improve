@@ -1,7 +1,7 @@
 import torch
 from torch import nn
-from models.vunet import VUnet
-from models.ml_memAE_sc import ML_MemAE_SC
+from hf2vad_models.vunet import VUnet
+from hf2vad_models.ml_memAE_sc import ML_MemAE_SC
 
 
 class HFVAD(nn.Module):

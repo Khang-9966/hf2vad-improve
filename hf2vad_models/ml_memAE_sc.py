@@ -1,5 +1,5 @@
 import math
-from models.basic_modules import *
+from hf2vad_models.basic_modules import *
 
 
 # relu based hard shrinkage function, only works for positive values
